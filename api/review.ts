@@ -124,7 +124,7 @@ async function reviewWithClaude(
     : `${type.toUpperCase()} TO REVIEW:\n${content}`;
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-4-6",
     max_tokens: 2000,
     system: REVIEW_PROMPT(type, persona),
     messages: [{ role: "user", content: userPrompt }],
@@ -140,7 +140,7 @@ async function reviewWithClaude(
   };
 
   return {
-    model: "Claude Sonnet 4.6 (Anthropic)",
+    model: "Claude Opus 4.6 (Anthropic)",
     score: parsed.score,
     verdict: parsed.verdict as ModelReview["verdict"],
     issues: parsed.issues as ModelReview["issues"],

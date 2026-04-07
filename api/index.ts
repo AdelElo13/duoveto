@@ -119,7 +119,7 @@ async function deleteUser(userId) {
     <p style="color:#bbb;font-size:0.9rem;line-height:1.6">Two AI models with different specializations review your code independently and in parallel. You get issues found by each, where they disagree, and a unified ship-or-block recommendation.</p>
     <div class="models-row">
       <div class="mi"><div class="prov">OpenAI</div><div class="mname">GPT-5.4 (OpenAI)</div><div class="mrole">Security, correctness &amp; edge cases</div></div>
-      <div class="mi"><div class="prov">Anthropic</div><div class="mname">Claude Sonnet 4.6 (Anthropic)</div><div class="mrole">Architecture, maintainability &amp; tradeoffs</div></div>
+      <div class="mi"><div class="prov">Anthropic</div><div class="mname">Claude Opus 4.6 (Anthropic)</div><div class="mrole">Architecture, maintainability &amp; tradeoffs</div></div>
     </div>
   </div>
 
