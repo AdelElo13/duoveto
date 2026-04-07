@@ -9,7 +9,7 @@ function verifySignature(payload: string, signature: string | undefined, secret:
   if (!signature) return false;
   const expected = "sha256=" + createHmac("sha256", secret).update(payload).digest("hex");
   try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    return timingSafeEqual(new Uint8Array(Buffer.from(signature)), new Uint8Array(Buffer.from(expected)));
   } catch {
     return false;
   }
