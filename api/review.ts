@@ -1,11 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
 interface ReviewRequest {
   content: string;
   type?: "plan" | "code" | "architecture" | "decision";
   context?: string;
-  models?: string[];
 }
 
 interface ModelReview {
@@ -27,7 +25,7 @@ interface ReviewResponse {
   timestamp: string;
 }
 
-const REVIEW_PROMPT = (type: string) => `You are an adversarial code reviewer. Your job is to find flaws, risks, and improvements that others miss. You are thorough, specific, and constructive — not mean, but relentlessly honest.
+const REVIEW_PROMPT = (type: string, persona: string) => `You are ${persona}. Your job is to find flaws, risks, and improvements that others miss. You are thorough, specific, and constructive — not mean, but relentlessly honest.
 
 You are reviewing a ${type}. Be critical but fair. Focus on:
 - Security vulnerabilities and data safety
@@ -63,46 +61,12 @@ function parseJsonResponse(text: string): Record<string, unknown> {
   }
 }
 
-async function reviewWithClaude(
+async function reviewWithModel(
   content: string,
   type: string,
   context: string,
-): Promise<ModelReview> {
-  const client = new Anthropic();
-  const userPrompt = context
-    ? `Context: ${context}\n\n${type.toUpperCase()} TO REVIEW:\n${content}`
-    : `${type.toUpperCase()} TO REVIEW:\n${content}`;
-
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2000,
-    system: REVIEW_PROMPT(type),
-    messages: [{ role: "user", content: userPrompt }],
-  });
-
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
-  const parsed = parseJsonResponse(text) as {
-    score: number;
-    verdict: string;
-    issues: Array<{ severity: string; description: string }>;
-    improvements: string[];
-    praise: string[];
-  };
-
-  return {
-    model: "claude-sonnet-4-6",
-    score: parsed.score,
-    verdict: parsed.verdict as ModelReview["verdict"],
-    issues: parsed.issues as ModelReview["issues"],
-    improvements: parsed.improvements,
-    praise: parsed.praise,
-  };
-}
-
-async function reviewWithGPT(
-  content: string,
-  type: string,
-  context: string,
+  modelId: string,
+  persona: string,
 ): Promise<ModelReview> {
   const client = new OpenAI();
   const userPrompt = context
@@ -110,10 +74,10 @@ async function reviewWithGPT(
     : `${type.toUpperCase()} TO REVIEW:\n${content}`;
 
   const response = await client.chat.completions.create({
-    model: "gpt-4.1",
+    model: modelId,
     max_tokens: 2000,
     messages: [
-      { role: "system", content: REVIEW_PROMPT(type) },
+      { role: "system", content: REVIEW_PROMPT(type, persona) },
       { role: "user", content: userPrompt },
     ],
   });
@@ -128,7 +92,7 @@ async function reviewWithGPT(
   };
 
   return {
-    model: "gpt-4.1",
+    model: modelId,
     score: parsed.score,
     verdict: parsed.verdict as ModelReview["verdict"],
     issues: parsed.issues as ModelReview["issues"],
@@ -143,47 +107,37 @@ function synthesizeReviews(reviews: ModelReview[]): {
   disagreements: string[];
   unified_recommendation: string;
 } {
-  const avgScore =
-    reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length;
+  const avgScore = reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length;
 
-  // Consensus: if any reviewer rejects, consensus is reject
-  // If any has concerns, consensus is concerns
   const verdicts = reviews.map((r) => r.verdict);
   let consensus: ReviewResponse["consensus"] = "approve";
   if (verdicts.includes("reject")) consensus = "reject";
   else if (verdicts.includes("concerns")) consensus = "concerns";
 
-  // Find disagreements
   const disagreements: string[] = [];
   if (new Set(verdicts).size > 1) {
     disagreements.push(
       `Verdict split: ${reviews.map((r) => `${r.model} says ${r.verdict}`).join(", ")}`,
     );
   }
-  const scoreDiff = Math.abs(reviews[0].score - reviews[1]?.score || 0);
-  if (scoreDiff >= 2) {
-    disagreements.push(
-      `Score gap: ${reviews.map((r) => `${r.model}: ${r.score}/10`).join(" vs ")}`,
-    );
-  }
-
-  // Find issues one found but the other didn't
   if (reviews.length >= 2) {
+    const scoreDiff = Math.abs(reviews[0].score - reviews[1].score);
+    if (scoreDiff >= 2) {
+      disagreements.push(
+        `Score gap: ${reviews.map((r) => `${r.model}: ${r.score}/10`).join(" vs ")}`,
+      );
+    }
+
     const criticals0 = reviews[0].issues.filter((i) => i.severity === "critical");
     const criticals1 = reviews[1].issues.filter((i) => i.severity === "critical");
     if (criticals0.length > 0 && criticals1.length === 0) {
-      disagreements.push(
-        `${reviews[0].model} found critical issues that ${reviews[1].model} missed`,
-      );
+      disagreements.push(`${reviews[0].model} found critical issues that ${reviews[1].model} missed`);
     }
     if (criticals1.length > 0 && criticals0.length === 0) {
-      disagreements.push(
-        `${reviews[1].model} found critical issues that ${reviews[0].model} missed`,
-      );
+      disagreements.push(`${reviews[1].model} found critical issues that ${reviews[0].model} missed`);
     }
   }
 
-  // Unified recommendation
   const allIssues = reviews.flatMap((r) => r.issues);
   const criticalCount = allIssues.filter((i) => i.severity === "critical").length;
   const highCount = allIssues.filter((i) => i.severity === "high").length;
@@ -199,52 +153,40 @@ function synthesizeReviews(reviews: ModelReview[]): {
     recommendation = `IMPROVE: Average score ${avgScore.toFixed(1)}/10. Address the noted issues.`;
   }
 
-  return {
-    consensus,
-    consensus_score: Math.round(avgScore * 10) / 10,
-    disagreements,
-    unified_recommendation: recommendation,
-  };
+  return { consensus, consensus_score: Math.round(avgScore * 10) / 10, disagreements, unified_recommendation: recommendation };
 }
 
-// Rate limiting (in-memory for now)
+// Rate limiting (in-memory)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 const FREE_LIMIT = 10;
 
 function checkRateLimit(apiKey: string): boolean {
   const now = Date.now();
   const limit = rateLimits.get(apiKey);
-
   if (!limit || now > limit.resetAt) {
-    rateLimits.set(apiKey, {
-      count: 1,
-      resetAt: now + 24 * 60 * 60 * 1000,
-    });
+    rateLimits.set(apiKey, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
     return true;
   }
-
   if (limit.count >= FREE_LIMIT) return false;
   limit.count++;
   return true;
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-    });
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
   if (req.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  // Auth
   const authHeader = req.headers.get("authorization");
   const apiKey = authHeader?.replace("Bearer ", "") || "anonymous";
 
@@ -263,30 +205,32 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   if (!body.content || body.content.length < 10) {
-    return Response.json(
-      { error: "content is required (min 10 characters)" },
-      { status: 400 },
-    );
+    return Response.json({ error: "content is required (min 10 characters)" }, { status: 400 });
   }
 
   if (body.content.length > 50000) {
-    return Response.json(
-      { error: "content too large (max 50,000 characters)" },
-      { status: 400 },
-    );
+    return Response.json({ error: "content too large (max 50,000 characters)" }, { status: 400 });
   }
 
   const type = body.type || "code";
   const context = body.context || "";
 
   try {
-    // Run both reviews in parallel
-    const [claudeReview, gptReview] = await Promise.all([
-      reviewWithClaude(body.content, type, context),
-      reviewWithGPT(body.content, type, context),
+    // Two models, two personas, parallel execution
+    const [review1, review2] = await Promise.all([
+      reviewWithModel(
+        body.content, type, context,
+        "gpt-4.1",
+        "a meticulous senior engineer who focuses on correctness, security, and edge cases",
+      ),
+      reviewWithModel(
+        body.content, type, context,
+        "o3-mini",
+        "a pragmatic tech lead who focuses on architecture, maintainability, and real-world tradeoffs",
+      ),
     ]);
 
-    const reviews = [claudeReview, gptReview];
+    const reviews = [review1, review2];
     const synthesis = synthesizeReviews(reviews);
 
     const response: ReviewResponse = {
@@ -301,10 +245,8 @@ export default async function handler(req: Request): Promise<Response> {
 
     return Response.json(response, {
       headers: {
-        "Access-Control-Allow-Origin": "*",
-        "X-RateLimit-Remaining": String(
-          FREE_LIMIT - (rateLimits.get(apiKey)?.count || 0),
-        ),
+        ...CORS_HEADERS,
+        "X-RateLimit-Remaining": String(FREE_LIMIT - (rateLimits.get(apiKey)?.count || 0)),
       },
     });
   } catch (err) {
