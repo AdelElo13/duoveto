@@ -12,6 +12,11 @@
   "license": "MIT",
   "dependencies": {
     "@vercel/node": "^5.7.1",
+    "express": "^5.2.1",
     "openai": "^6.33.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
   }
 }
