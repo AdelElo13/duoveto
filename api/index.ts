@@ -91,6 +91,5 @@ curl -X POST https://adversarial-review.vercel.app/api/review \\
   </footer>
 </div>
 </body>
-</html>`,
-`);
+</html>`);
 }
