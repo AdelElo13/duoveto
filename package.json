@@ -1,0 +1,19 @@
+{
+  "name": "adversarial-review",
+  "version": "0.1.0",
+  "description": "Multi-model adversarial code review API",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "vercel build",
+    "deploy": "vercel --prod"
+  },
+  "author": "AdelElo13",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.85.0",
+    "@hono/node-server": "^1.19.13",
+    "hono": "^4.12.12",
+    "openai": "^6.33.0"
+  }
+}
