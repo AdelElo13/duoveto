@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { SignJWT, importPKCS8 } from "jose";
 import OpenAI from "openai";
+import { canReview } from "./_billing.js";
 
 // --- Auth helpers ---
 
@@ -157,8 +158,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
+  // Check billing
+  const installationId = String(payload.installation.id);
+  const billing = await canReview(installationId);
+
+  if (!billing.allowed) {
+    res.status(200).json({ blocked: true, reason: billing.reason });
+    return;
+  }
+
   // Respond immediately, process async
-  res.status(202).json({ queued: true });
+  res.status(202).json({ queued: true, billing: billing.reason });
 
   try {
     const token = await getInstallationToken(payload.installation.id);

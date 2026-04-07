@@ -133,8 +133,36 @@ async function deleteUser(userId) {
     </ul>
   </div>
 
+  <div class="card">
+    <h2>Pricing</h2>
+    <div class="models-row">
+      <div class="mi" style="border-color:#333">
+        <div class="prov">Free</div>
+        <div class="mname" style="font-size:1.5rem">$0</div>
+        <div class="mrole">10 PR reviews / month</div>
+        <div style="margin-top:0.5rem;color:#666;font-size:0.8rem">
+          Website reviews unlimited<br>
+          Confidence labels<br>
+          GitHub status checks
+        </div>
+        <div style="margin-top:0.75rem"><a href="https://github.com/apps/duoveto" class="btn-sm" style="display:inline-block">Install free</a></div>
+      </div>
+      <div class="mi" style="border-color:#8b5cf6">
+        <div class="prov" style="color:#f43f5e">Pro</div>
+        <div class="mname" style="font-size:1.5rem">$19<span style="font-size:0.7rem;color:#888">/mo</span></div>
+        <div class="mrole">Unlimited PR reviews</div>
+        <div style="margin-top:0.5rem;color:#666;font-size:0.8rem">
+          Everything in Free<br>
+          Unlimited GitHub PR reviews<br>
+          Priority processing
+        </div>
+        <div style="margin-top:0.75rem"><button class="btn" style="font-size:0.85rem;padding:0.4rem 1.2rem" onclick="upgrade()">Upgrade</button></div>
+      </div>
+    </div>
+  </div>
+
   <footer>
-    <a href="https://github.com/AdelElo13/duoveto">GitHub</a> &middot; Built by <a href="https://github.com/AdelElo13">AdelElo13</a> &middot; Free: 10 reviews/day
+    <a href="https://github.com/AdelElo13/duoveto">GitHub</a> &middot; <a href="https://github.com/apps/duoveto">Install GitHub App</a> &middot; Built by <a href="https://github.com/AdelElo13">AdelElo13</a>
   </footer>
 </div>
 
@@ -215,6 +243,15 @@ async function submitReview(){
     st.textContent='';
   }catch(e){st.textContent='Error: '+e.message}
   btn.disabled=false;
+}
+
+async function upgrade(){
+  try{
+    var r=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    var d=await r.json();
+    if(d.url) window.location.href=d.url;
+    else alert(d.error||'Failed to create checkout session');
+  }catch(e){alert('Error: '+e.message)}
 }
 </script>
 </body>
