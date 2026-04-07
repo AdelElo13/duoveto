@@ -18,6 +18,7 @@ export default function handler(_req: VercelRequest, res: VercelResponse): void 
   .tagline { color: #888; font-size: 1.15rem; margin-bottom: 2.5rem; }
   .card { background: #141414; border: 1px solid #262626; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
   .card h2 { font-size: 1rem; color: #8b5cf6; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  p { line-height: 1.6; }
   pre { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; color: #ccc; }
   code { font-family: 'SF Mono', 'Fira Code', monospace; }
   .highlight { color: #8b5cf6; }
@@ -26,12 +27,18 @@ export default function handler(_req: VercelRequest, res: VercelResponse): void 
   .models { display: flex; gap: 1rem; margin-top: 1rem; }
   .model { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 0.75rem 1rem; flex: 1; text-align: center; }
   .model .name { font-weight: 600; color: #fff; }
+  .model .provider { color: #8b5cf6; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
   .model .role { color: #888; font-size: 0.85rem; }
   .badge { display: inline-block; background: #1a1a3a; color: #818cf8; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
   .badge.pro { background: #3a1a2a; color: #f43f5e; }
-  .flow { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin: 1.5rem 0; font-size: 0.95rem; }
+  .flow { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin: 1.5rem 0; font-size: 0.95rem; flex-wrap: wrap; }
   .flow .step { background: #1a1a2a; border: 1px solid #333; border-radius: 8px; padding: 0.5rem 1rem; }
   .flow .arrow { color: #555; }
+  .versus { display: flex; align-items: center; justify-content: center; gap: 1.5rem; margin: 1.5rem 0; }
+  .versus .vs { color: #f43f5e; font-weight: 800; font-size: 1.2rem; }
+  .feature-list { list-style: none; padding: 0; margin: 0.75rem 0; }
+  .feature-list li { padding: 0.3rem 0; color: #bbb; }
+  .feature-list li::before { content: "\\2713 "; color: #4ade80; margin-right: 0.5rem; }
   footer { margin-top: 2rem; color: #555; font-size: 0.85rem; }
   a { color: #8b5cf6; text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -40,24 +47,43 @@ export default function handler(_req: VercelRequest, res: VercelResponse): void 
 <body>
 <div class="container">
   <div class="logo"><span class="duo">Duo</span><span class="veto">Veto</span></div>
-  <p class="tagline">Two AIs review your code independently. One unified verdict.</p>
+  <p class="tagline">Two AI companies review your code. One unified verdict.</p>
 
   <div class="card">
     <h2>How it works</h2>
-    <p>Send your code, plan, or architecture decision. Two AI models with different personas review it independently and in parallel. You get a unified adversarial report with consensus, disagreements, and a clear ship-or-block recommendation.</p>
+    <p>Send your code, plan, or architecture decision. OpenAI and Anthropic review it independently and in parallel with different perspectives. You get a unified adversarial report with consensus, disagreements, and a clear ship-or-block recommendation.</p>
     <div class="flow">
       <div class="step">Your code</div>
       <div class="arrow">&rarr;</div>
-      <div class="step">GPT-5.4</div>
-      <div class="arrow">+</div>
-      <div class="step">o4-mini</div>
+      <div class="step">OpenAI</div>
+      <div class="arrow">vs</div>
+      <div class="step">Anthropic</div>
       <div class="arrow">&rarr;</div>
       <div class="step">Verdict</div>
     </div>
     <div class="models">
-      <div class="model"><div class="name">GPT-5.4</div><div class="role">Security &amp; correctness</div></div>
-      <div class="model"><div class="name">o4-mini</div><div class="role">Architecture &amp; tradeoffs</div></div>
+      <div class="model">
+        <div class="provider">OpenAI</div>
+        <div class="name">Codex (GPT-5)</div>
+        <div class="role">Security &amp; correctness</div>
+      </div>
+      <div class="model">
+        <div class="provider">Anthropic</div>
+        <div class="name">Claude (Opus 4.6)</div>
+        <div class="role">Architecture &amp; tradeoffs</div>
+      </div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Why two companies?</h2>
+    <p>Single-model reviews have blind spots. Models from the same company share training biases. DuoVeto uses models from different AI companies to get genuinely independent perspectives &mdash; like getting a second opinion from a different doctor.</p>
+    <ul class="feature-list">
+      <li>Different training data = different blind spots caught</li>
+      <li>Different safety approaches = more thorough security review</li>
+      <li>Disagreements between models highlight the gray areas</li>
+      <li>Consensus means the code is genuinely solid</li>
+    </ul>
   </div>
 
   <div class="card">
@@ -87,8 +113,8 @@ curl -X POST https://duoveto.dev/api/review \\
   <span class="string">"consensus"</span>: <span class="string">"approve|concerns|reject"</span>,
   <span class="string">"consensus_score"</span>: 7.5,
   <span class="string">"reviews"</span>: [
-    { <span class="string">"model"</span>: <span class="string">"gpt-5.4"</span>, <span class="string">"score"</span>: 8, <span class="string">"issues"</span>: [...] },
-    { <span class="string">"model"</span>: <span class="string">"o4-mini"</span>, <span class="string">"score"</span>: 7, <span class="string">"issues"</span>: [...] }
+    { <span class="string">"model"</span>: <span class="string">"codex (GPT-5)"</span>, <span class="string">"score"</span>: 8, <span class="string">"issues"</span>: [...] },
+    { <span class="string">"model"</span>: <span class="string">"claude (Opus 4.6)"</span>, <span class="string">"score"</span>: 7, <span class="string">"issues"</span>: [...] }
   ],
   <span class="string">"disagreements"</span>: [...],
   <span class="string">"unified_recommendation"</span>: <span class="string">"APPROVE: Ship it."</span>
@@ -97,7 +123,7 @@ curl -X POST https://duoveto.dev/api/review \\
 
   <div class="card">
     <h2>Pricing</h2>
-    <p><span class="badge">Free</span> 10 reviews/day &nbsp; <span class="badge pro">Pro (coming soon)</span> Unlimited reviews + Claude model</p>
+    <p><span class="badge">Free</span> 10 reviews/day &nbsp; <span class="badge pro">Pro (coming soon)</span> Unlimited reviews</p>
   </div>
 
   <footer>
