@@ -74,15 +74,12 @@ async function reviewWithModel(
     ? `Context: ${context}\n\n${type.toUpperCase()} TO REVIEW:\n${content}`
     : `${type.toUpperCase()} TO REVIEW:\n${content}`;
 
-  const isReasoningModel = modelId.startsWith("o");
   const response = await client.chat.completions.create({
     model: modelId,
-    ...(isReasoningModel ? { max_completion_tokens: 2000 } : { max_tokens: 2000 }),
+    max_completion_tokens: 2000,
     messages: [
-      ...(isReasoningModel ? [] : [{ role: "system" as const, content: REVIEW_PROMPT(type, persona) }]),
-      { role: "user" as const, content: isReasoningModel
-        ? `${REVIEW_PROMPT(type, persona)}\n\n${userPrompt}`
-        : userPrompt },
+      { role: "system" as const, content: REVIEW_PROMPT(type, persona) },
+      { role: "user" as const, content: userPrompt },
     ],
   });
 
