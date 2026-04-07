@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import Stripe from "stripe";
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== "POST") {
@@ -6,9 +7,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
-  const stripe = await import("stripe");
-  const client = new stripe.default(process.env.STRIPE_SECRET_KEY!);
-
+  const client = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const { installation_id, email } = req.body as { installation_id?: string; email?: string };
 
   try {
