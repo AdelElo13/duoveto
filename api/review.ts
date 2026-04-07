@@ -139,7 +139,7 @@ function labelIssues(reviews: ModelReview[]): LabeledIssue[] {
       let overlap = 0;
       for (const w of wordsA) if (wordsB.has(w)) overlap++;
       const score = overlap / Math.max(wordsA.size, wordsB.size, 1);
-      if (score > bestScore && score > 0.25) {
+      if (score > bestScore && score > 0.15) {
         bestScore = score;
         bestMatch = j;
       }
