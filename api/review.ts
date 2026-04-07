@@ -16,11 +16,21 @@ interface ModelReview {
   praise: string[];
 }
 
+type Confidence = "dual-consensus" | "contested" | "single-model-hunch";
+
+interface LabeledIssue {
+  severity: "critical" | "high" | "medium" | "low";
+  description: string;
+  confidence: Confidence;
+  found_by: string[];
+}
+
 interface ReviewResponse {
   id: string;
   consensus: "approve" | "concerns" | "reject";
   consensus_score: number;
   reviews: ModelReview[];
+  labeled_issues: LabeledIssue[];
   disagreements: string[];
   unified_recommendation: string;
   timestamp: string;
@@ -102,9 +112,89 @@ async function reviewWithModel(
   };
 }
 
+function labelIssues(reviews: ModelReview[]): LabeledIssue[] {
+  if (reviews.length < 2) {
+    return reviews[0]?.issues.map((i) => ({
+      ...i,
+      confidence: "single-model-hunch" as Confidence,
+      found_by: [reviews[0].model],
+    })) || [];
+  }
+
+  const labeled: LabeledIssue[] = [];
+  const used1 = new Set<number>();
+  const used2 = new Set<number>();
+
+  // Match similar issues between the two reviewers
+  for (let i = 0; i < reviews[0].issues.length; i++) {
+    const a = reviews[0].issues[i];
+    let bestMatch = -1;
+    let bestScore = 0;
+
+    for (let j = 0; j < reviews[1].issues.length; j++) {
+      if (used2.has(j)) continue;
+      // Simple word overlap similarity
+      const wordsA = new Set(a.description.toLowerCase().split(/\W+/).filter((w) => w.length > 3));
+      const wordsB = new Set(reviews[1].issues[j].description.toLowerCase().split(/\W+/).filter((w) => w.length > 3));
+      let overlap = 0;
+      for (const w of wordsA) if (wordsB.has(w)) overlap++;
+      const score = overlap / Math.max(wordsA.size, wordsB.size, 1);
+      if (score > bestScore && score > 0.25) {
+        bestScore = score;
+        bestMatch = j;
+      }
+    }
+
+    if (bestMatch >= 0) {
+      // Both models found this — dual consensus
+      used1.add(i);
+      used2.add(bestMatch);
+      const b = reviews[1].issues[bestMatch];
+      labeled.push({
+        severity: a.severity === "critical" || b.severity === "critical" ? "critical"
+          : a.severity === "high" || b.severity === "high" ? "high"
+          : a.severity === "medium" || b.severity === "medium" ? "medium" : "low",
+        description: a.description,
+        confidence: a.severity === b.severity ? "dual-consensus" : "contested",
+        found_by: [reviews[0].model, reviews[1].model],
+      });
+    }
+  }
+
+  // Remaining from reviewer 1
+  for (let i = 0; i < reviews[0].issues.length; i++) {
+    if (!used1.has(i)) {
+      labeled.push({
+        ...reviews[0].issues[i],
+        confidence: "single-model-hunch",
+        found_by: [reviews[0].model],
+      });
+    }
+  }
+
+  // Remaining from reviewer 2
+  for (let j = 0; j < reviews[1].issues.length; j++) {
+    if (!used2.has(j)) {
+      labeled.push({
+        ...reviews[1].issues[j],
+        confidence: "single-model-hunch",
+        found_by: [reviews[1].model],
+      });
+    }
+  }
+
+  // Sort: dual-consensus first, then contested, then hunches; within each: by severity
+  const confOrder: Record<Confidence, number> = { "dual-consensus": 0, "contested": 1, "single-model-hunch": 2 };
+  const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  labeled.sort((a, b) => confOrder[a.confidence] - confOrder[b.confidence] || sevOrder[a.severity] - sevOrder[b.severity]);
+
+  return labeled;
+}
+
 function synthesizeReviews(reviews: ModelReview[]): {
   consensus: ReviewResponse["consensus"];
   consensus_score: number;
+  labeled_issues: LabeledIssue[];
   disagreements: string[];
   unified_recommendation: string;
 } {
@@ -154,7 +244,7 @@ function synthesizeReviews(reviews: ModelReview[]): {
     recommendation = `IMPROVE: Average score ${avgScore.toFixed(1)}/10. Address the noted issues.`;
   }
 
-  return { consensus, consensus_score: Math.round(avgScore * 10) / 10, disagreements, unified_recommendation: recommendation };
+  return { consensus, consensus_score: Math.round(avgScore * 10) / 10, labeled_issues: labelIssues(reviews), disagreements, unified_recommendation: recommendation };
 }
 
 // Rate limiting (in-memory)
@@ -239,6 +329,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       consensus: synthesis.consensus,
       consensus_score: synthesis.consensus_score,
       reviews,
+      labeled_issues: synthesis.labeled_issues,
       disagreements: synthesis.disagreements,
       unified_recommendation: synthesis.unified_recommendation,
       timestamp: new Date().toISOString(),

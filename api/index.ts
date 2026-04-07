@@ -73,6 +73,14 @@ const HTML = `<!DOCTYPE html>
   .feature-list { list-style: none; padding: 0; }
   .feature-list li { padding: 0.2rem 0; color: #999; font-size: 0.88rem; }
   .feature-list li::before { content: "\\2713 "; color: #4ade80; margin-right: 0.4rem; }
+  .conf { font-size: 0.65rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; text-transform: uppercase; margin-left: 0.4rem; }
+  .conf.dual-consensus { background: #1a3a1a; color: #4ade80; }
+  .conf.contested { background: #3a3a1a; color: #facc15; }
+  .conf.single-model-hunch { background: #1a1a2a; color: #818cf8; }
+  .found-by { color: #555; font-size: 0.75rem; margin-left: 0.4rem; }
+  .labeled-section { margin-bottom: 0.5rem; }
+  .labeled-section .sect-title { font-size: 0.8rem; color: #8b5cf6; text-transform: uppercase; letter-spacing: 0.05em; margin: 1rem 0 0.4rem; display: flex; align-items: center; gap: 0.5rem; }
+  .labeled-section .sect-title .count { background: #1a1a2a; color: #818cf8; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; }
   @media (max-width: 600px) { .form-row { flex-direction: column; align-items: stretch; } .models-row { flex-direction: column; } .consensus-bar { flex-wrap: wrap; } }
 </style>
 </head>
@@ -182,6 +190,25 @@ async function submitReview(){
     html+='<div class="recommendation">'+esc(d.unified_recommendation)+'</div>';
     if(d.disagreements.length){d.disagreements.forEach(function(dg){html+='<div class="disagree">'+esc(dg)+'</div>'})}
     html+='</div>';
+
+    // Labeled issues (confidence-grouped)
+    if(d.labeled_issues&&d.labeled_issues.length){
+      var groups={'dual-consensus':[],'contested':[],'single-model-hunch':[]};
+      d.labeled_issues.forEach(function(li){if(groups[li.confidence])groups[li.confidence].push(li)});
+      var groupLabels={'dual-consensus':'Both models agree','contested':'Models disagree on severity','single-model-hunch':'Found by one model only'};
+      html+='<div class="card">';
+      html+='<h2>Confidence-Labeled Issues</h2>';
+      for(var g in groups){
+        if(!groups[g].length)continue;
+        html+='<div class="labeled-section"><div class="sect-title">'+groupLabels[g]+' <span class="count">'+groups[g].length+'</span></div>';
+        groups[g].forEach(function(li){
+          html+='<div class="issue"><span class="sev '+li.severity+'">'+li.severity+'</span><span class="conf '+li.confidence+'">'+li.confidence.replace(/-/g,' ')+'</span><span class="issue-text">'+esc(li.description)+'</span><span class="found-by">'+li.found_by.join(', ')+'</span></div>';
+        });
+        html+='</div>';
+      }
+      html+='</div>';
+    }
+
     d.reviews.forEach(function(rv){html+=renderReview(rv)});
     res.innerHTML=html;res.style.display='block';
     res.scrollIntoView({behavior:'smooth',block:'start'});
