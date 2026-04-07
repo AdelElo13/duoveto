@@ -48,15 +48,15 @@ export default function handler(_req: VercelRequest, res: VercelResponse): void 
     <div class="flow">
       <div class="step">Your code</div>
       <div class="arrow">&rarr;</div>
-      <div class="step">GPT-4.1</div>
+      <div class="step">GPT-5.4</div>
       <div class="arrow">+</div>
-      <div class="step">o3-mini</div>
+      <div class="step">o4-mini</div>
       <div class="arrow">&rarr;</div>
       <div class="step">Verdict</div>
     </div>
     <div class="models">
-      <div class="model"><div class="name">GPT-4.1</div><div class="role">Security &amp; correctness</div></div>
-      <div class="model"><div class="name">o3-mini</div><div class="role">Architecture &amp; tradeoffs</div></div>
+      <div class="model"><div class="name">GPT-5.4</div><div class="role">Security &amp; correctness</div></div>
+      <div class="model"><div class="name">o4-mini</div><div class="role">Architecture &amp; tradeoffs</div></div>
     </div>
   </div>
 
@@ -87,8 +87,8 @@ curl -X POST https://duoveto.dev/api/review \\
   <span class="string">"consensus"</span>: <span class="string">"approve|concerns|reject"</span>,
   <span class="string">"consensus_score"</span>: 7.5,
   <span class="string">"reviews"</span>: [
-    { <span class="string">"model"</span>: <span class="string">"gpt-4.1"</span>, <span class="string">"score"</span>: 8, <span class="string">"issues"</span>: [...] },
-    { <span class="string">"model"</span>: <span class="string">"o3-mini"</span>, <span class="string">"score"</span>: 7, <span class="string">"issues"</span>: [...] }
+    { <span class="string">"model"</span>: <span class="string">"gpt-5.4"</span>, <span class="string">"score"</span>: 8, <span class="string">"issues"</span>: [...] },
+    { <span class="string">"model"</span>: <span class="string">"o4-mini"</span>, <span class="string">"score"</span>: 7, <span class="string">"issues"</span>: [...] }
   ],
   <span class="string">"disagreements"</span>: [...],
   <span class="string">"unified_recommendation"</span>: <span class="string">"APPROVE: Ship it."</span>

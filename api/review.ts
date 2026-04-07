@@ -224,12 +224,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const [review1, review2] = await Promise.all([
       reviewWithModel(
         body.content, type, context,
-        "gpt-4.1",
+        "gpt-5.4",
         "a meticulous senior engineer who focuses on correctness, security, and edge cases",
       ),
       reviewWithModel(
         body.content, type, context,
-        "o3-mini",
+        "o4-mini",
         "a pragmatic tech lead who focuses on architecture, maintainability, and real-world tradeoffs",
       ),
     ]);
