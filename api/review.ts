@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 interface ReviewRequest {
   content: string;
@@ -72,11 +73,10 @@ function parseJsonResponse(text: string): Record<string, unknown> {
   }
 }
 
-async function reviewWithModel(
+async function reviewWithOpenAI(
   content: string,
   type: string,
   context: string,
-  modelId: string,
   persona: string,
 ): Promise<ModelReview> {
   const client = new OpenAI();
@@ -85,7 +85,7 @@ async function reviewWithModel(
     : `${type.toUpperCase()} TO REVIEW:\n${content}`;
 
   const response = await client.chat.completions.create({
-    model: modelId,
+    model: "gpt-5.4",
     max_completion_tokens: 2000,
     messages: [
       { role: "system" as const, content: REVIEW_PROMPT(type, persona) },
@@ -103,7 +103,44 @@ async function reviewWithModel(
   };
 
   return {
-    model: modelId,
+    model: "GPT-5.4 (OpenAI)",
+    score: parsed.score,
+    verdict: parsed.verdict as ModelReview["verdict"],
+    issues: parsed.issues as ModelReview["issues"],
+    improvements: parsed.improvements,
+    praise: parsed.praise,
+  };
+}
+
+async function reviewWithClaude(
+  content: string,
+  type: string,
+  context: string,
+  persona: string,
+): Promise<ModelReview> {
+  const client = new Anthropic();
+  const userPrompt = context
+    ? `Context: ${context}\n\n${type.toUpperCase()} TO REVIEW:\n${content}`
+    : `${type.toUpperCase()} TO REVIEW:\n${content}`;
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 2000,
+    system: REVIEW_PROMPT(type, persona),
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const text = response.content[0].type === "text" ? response.content[0].text : "";
+  const parsed = parseJsonResponse(text) as {
+    score: number;
+    verdict: string;
+    issues: Array<{ severity: string; description: string }>;
+    improvements: string[];
+    praise: string[];
+  };
+
+  return {
+    model: "Claude Sonnet 4.6 (Anthropic)",
     score: parsed.score,
     verdict: parsed.verdict as ModelReview["verdict"],
     issues: parsed.issues as ModelReview["issues"],
@@ -309,14 +346,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const [review1, review2] = await Promise.all([
-      reviewWithModel(
+      reviewWithOpenAI(
         body.content, type, context,
-        "gpt-5.4",
         "a meticulous senior engineer who focuses on correctness, security, and edge cases",
       ),
-      reviewWithModel(
+      reviewWithClaude(
         body.content, type, context,
-        "o4-mini",
         "a pragmatic tech lead who focuses on architecture, maintainability, and real-world tradeoffs",
       ),
     ]);

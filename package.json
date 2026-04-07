@@ -11,6 +11,7 @@
   "author": "AdelElo13",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.85.0",
     "@vercel/node": "^5.7.1",
     "express": "^5.2.1",
     "jose": "^6.2.2",
