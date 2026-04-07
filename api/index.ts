@@ -1,6 +1,8 @@
-export default function handler(): Response {
-  return new Response(
-    `<!DOCTYPE html>
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+
+export default function handler(_req: VercelRequest, res: VercelResponse): void {
+  res.setHeader("Content-Type", "text/html");
+  res.status(200).send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -90,6 +92,5 @@ curl -X POST https://adversarial-review.vercel.app/api/review \\
 </div>
 </body>
 </html>`,
-    { headers: { "Content-Type": "text/html" } },
-  );
+`);
 }

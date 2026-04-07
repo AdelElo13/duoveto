@@ -1,3 +1,4 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
 
 interface ReviewRequest {
@@ -178,45 +179,45 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    res.status(204).end();
+    return;
   }
 
   if (req.method !== "POST") {
-    return Response.json({ error: "Method not allowed" }, { status: 405 });
+    res.status(405).json({ error: "Method not allowed" });
+    return;
   }
 
-  const authHeader = req.headers.get("authorization");
+  const authHeader = req.headers.authorization;
   const apiKey = authHeader?.replace("Bearer ", "") || "anonymous";
 
   if (!checkRateLimit(apiKey)) {
-    return Response.json(
-      { error: "Rate limit exceeded. 10 reviews/day on free tier." },
-      { status: 429 },
-    );
+    res.status(429).json({ error: "Rate limit exceeded. 10 reviews/day on free tier." });
+    return;
   }
 
-  let body: ReviewRequest;
-  try {
-    body = (await req.json()) as ReviewRequest;
-  } catch {
-    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  const body = req.body as ReviewRequest;
 
   if (!body.content || body.content.length < 10) {
-    return Response.json({ error: "content is required (min 10 characters)" }, { status: 400 });
+    res.status(400).json({ error: "content is required (min 10 characters)" });
+    return;
   }
 
   if (body.content.length > 50000) {
-    return Response.json({ error: "content too large (max 50,000 characters)" }, { status: 400 });
+    res.status(400).json({ error: "content too large (max 50,000 characters)" });
+    return;
   }
 
   const type = body.type || "code";
   const context = body.context || "";
 
   try {
-    // Two models, two personas, parallel execution
     const [review1, review2] = await Promise.all([
       reviewWithModel(
         body.content, type, context,
@@ -243,19 +244,14 @@ export default async function handler(req: Request): Promise<Response> {
       timestamp: new Date().toISOString(),
     };
 
-    return Response.json(response, {
-      headers: {
-        ...CORS_HEADERS,
-        "X-RateLimit-Remaining": String(FREE_LIMIT - (rateLimits.get(apiKey)?.count || 0)),
-      },
-    });
+    res.setHeader("X-RateLimit-Remaining", String(FREE_LIMIT - (rateLimits.get(apiKey)?.count || 0)));
+    res.status(200).json(response);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    return Response.json({ error: `Review failed: ${msg}` }, { status: 500 });
+    res.status(500).json({ error: `Review failed: ${msg}` });
   }
 }
 
 export const config = {
-  runtime: "nodejs",
   maxDuration: 60,
 };

@@ -12,6 +12,7 @@
   "license": "MIT",
   "dependencies": {
     "@hono/node-server": "^1.19.13",
+    "@vercel/node": "^5.7.1",
     "hono": "^4.12.12",
     "openai": "^6.33.0"
   }
