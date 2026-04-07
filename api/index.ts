@@ -101,7 +101,7 @@ curl -X POST https://duoveto.dev/api/review \\
   </div>
 
   <footer>
-    <a href="https://github.com/AdelElo13/adversarial-review">GitHub</a> &middot; Built by <a href="https://github.com/AdelElo13">AdelElo13</a>
+    <a href="https://github.com/AdelElo13/duoveto">GitHub</a> &middot; Built by <a href="https://github.com/AdelElo13">AdelElo13</a>
   </footer>
 </div>
 </body>

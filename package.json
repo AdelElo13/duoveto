@@ -1,7 +1,7 @@
 {
-  "name": "adversarial-review",
+  "name": "duoveto",
   "version": "0.1.0",
-  "description": "Multi-model adversarial code review API",
+  "description": "Two AIs review your code independently. One unified verdict.",
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
@@ -11,9 +11,7 @@
   "author": "AdelElo13",
   "license": "MIT",
   "dependencies": {
-    "@hono/node-server": "^1.19.13",
     "@vercel/node": "^5.7.1",
-    "hono": "^4.12.12",
     "openai": "^6.33.0"
   }
 }
