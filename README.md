@@ -53,7 +53,9 @@ pm2 save
 
 ## API
 
-**`POST /api/review`**
+### `POST /api/review` (Free)
+
+Single round — both models review independently in parallel.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -61,15 +63,13 @@ pm2 save
 | `type` | string | no | `code`, `plan`, `architecture`, or `decision` |
 | `context` | string | no | Additional context |
 
-**Response:**
-
 ```json
 {
   "consensus": "approve|concerns|reject",
   "consensus_score": 7.5,
   "reviews": [
     {
-      "model": "codex (GPT-5)",
+      "model": "codex (GPT-5.3)",
       "score": 8,
       "verdict": "approve",
       "issues": [{"severity": "high", "description": "..."}],
@@ -90,15 +90,67 @@ pm2 save
 }
 ```
 
+### `POST /api/review/deep` (Pro)
+
+Iterative adversarial sparring — models respond to each other's feedback across multiple rounds until they converge.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | string | yes | Code or plan to review (10-50k chars) |
+| `type` | string | no | `code`, `plan`, `architecture`, or `decision` |
+| `context` | string | no | Additional context |
+| `api_key` | string | yes | Pro API key (`dv_pro_...`) |
+| `rounds` | number | no | Max rounds (default 3, max 5) |
+
+```bash
+curl -X POST https://duoveto.dev/api/review/deep \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "your code here",
+    "type": "code",
+    "api_key": "dv_pro_...",
+    "rounds": 3
+  }'
+```
+
+```json
+{
+  "mode": "deep",
+  "rounds_completed": 2,
+  "consensus": "approve",
+  "consensus_score": 8.0,
+  "final_reviews": ["... last round's reviews ..."],
+  "all_rounds": [
+    { "round": 1, "codex": {"...": "independent review"}, "claude": {"...": "independent review"} },
+    { "round": 2, "codex": {"...": "responds to claude"}, "claude": {"...": "responds to codex"} }
+  ],
+  "disagreements": [],
+  "unified_recommendation": "APPROVE: Both reviewers agree this is solid. Ship it."
+}
+```
+
+**How deep review works:**
+
+1. **Round 1**: Both models review independently (same as free)
+2. **Round 2+**: Each model sees the other's review and responds — agreeing, disagreeing with rebuttals, or raising new issues
+3. **Early exit**: Stops when both models have the same verdict and scores within 2 points
+4. **Max 5 rounds**: Presents remaining disagreements if no consensus
+
 ## Architecture
 
 ```
-Your code ──> Codex CLI (OpenAI, GPT-5 via OAuth) ──┐
-                                                      ├──> Synthesize ──> Verdict
-Your code ──> Claude Code CLI (Anthropic, Opus via OAuth) ─┘
+Free:
+  Your code ──> Codex (GPT-5.3) ──┐
+                                    ├──> Synthesize ──> Verdict
+  Your code ──> Claude (Opus 4.6) ─┘
+
+Pro (deep):
+  Round 1: Independent parallel reviews
+  Round 2: Each model responds to the other's review
+  Round N: Iterate until consensus or max rounds
 ```
 
-Both models run in parallel. Both use OAuth — zero API costs.
+Both models use OAuth — zero API costs when self-hosted.
 
 ## License
 
