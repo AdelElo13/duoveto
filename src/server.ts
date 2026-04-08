@@ -54,7 +54,7 @@ function parseJson(text: string): Record<string, unknown> {
   throw new Error("Failed to parse JSON from response");
 }
 
-function runCli(cmd: string, args: string[], timeout = 120000): Promise<string> {
+function runCli(cmd: string, args: string[], timeout = 360000): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = execFile(cmd, args, { timeout, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error(`${cmd} failed: ${err.message}\n${stderr}`));
@@ -197,8 +197,157 @@ app.post("/api/review", async (req, res) => {
   }
 });
 
+// ─── Pro: Iterative Sparring ──────────────────────────────────────────
+const SPAR_PROMPT = (persona: string, otherModel: string) =>
+  `You are ${persona}. You are reviewing code AND responding to a peer reviewer (${otherModel}).
+
+For each point in the peer's review:
+- AGREE if you think they're right
+- DISAGREE with specific reasoning if you think they're wrong
+- Add new issues they missed
+
+Output a JSON object with:
+- score (number 1-10)
+- verdict ("approve", "concerns", or "reject")
+- agreements (array of strings — points you agree with from peer)
+- disagreements (array of objects with "point" and "rebuttal" strings)
+- new_issues (array of objects with severity and description)
+- final_position ("AGREE" or "DISAGREE" with shipping)`;
+
+async function sparRound(
+  content: string,
+  type: string,
+  context: string,
+  previousReviews: ModelReview[],
+  round: number,
+): Promise<{ codex: ModelReview; claude: ModelReview }> {
+  const peerContext = previousReviews
+    .map((r) => `${r.model} (score ${r.score}/10, ${r.verdict}): issues: ${JSON.stringify(r.issues)}, improvements: ${JSON.stringify(r.improvements)}`)
+    .join("\n\n");
+
+  const codexPrompt = `${SPAR_PROMPT("a meticulous senior engineer (GPT/Codex)", "Claude/Opus")}
+
+Round ${round} of adversarial review.
+
+PEER'S PREVIOUS REVIEW:
+${peerContext}
+
+${type.toUpperCase()} UNDER REVIEW:
+${content}`;
+
+  const claudePrompt = `${SPAR_PROMPT("a pragmatic tech lead (Claude/Opus)", "GPT/Codex")}
+
+Round ${round} of adversarial review.
+
+PEER'S PREVIOUS REVIEW:
+${peerContext}
+
+${type.toUpperCase()} UNDER REVIEW:
+${content}`;
+
+  const [codexOut, claudeOut] = await Promise.all([
+    runCli("codex", ["exec", codexPrompt, "--ephemeral", "--skip-git-repo-check"]),
+    runCli("claude", ["-p", claudePrompt]),
+  ]);
+
+  const codexParsed = parseJson(codexOut);
+  const claudeParsed = parseJson(claudeOut);
+
+  return {
+    codex: {
+      model: `codex (GPT-5.3) — round ${round}`,
+      score: codexParsed.score as number,
+      verdict: codexParsed.verdict as ModelReview["verdict"],
+      issues: [
+        ...((codexParsed.new_issues ?? []) as ModelReview["issues"]),
+      ],
+      improvements: (codexParsed.disagreements as Array<{ point: string; rebuttal: string }> ?? [])
+        .map((d) => `Disagrees with peer: ${d.point} — ${d.rebuttal}`),
+      praise: (codexParsed.agreements as string[] ?? []),
+    },
+    claude: {
+      model: `claude (Opus 4.6) — round ${round}`,
+      score: claudeParsed.score as number,
+      verdict: claudeParsed.verdict as ModelReview["verdict"],
+      issues: [
+        ...((claudeParsed.new_issues ?? []) as ModelReview["issues"]),
+      ],
+      improvements: (claudeParsed.disagreements as Array<{ point: string; rebuttal: string }> ?? [])
+        .map((d) => `Disagrees with peer: ${d.point} — ${d.rebuttal}`),
+      praise: (claudeParsed.agreements as string[] ?? []),
+    },
+  };
+}
+
+app.post("/api/review/deep", async (req, res) => {
+  const { content, type = "code", context = "", rounds = 3, api_key } = req.body || {};
+
+  if (!api_key || !api_key.startsWith("dv_pro_")) {
+    res.status(403).json({ error: "Deep review requires a Pro API key. Get one at duoveto.dev/pro" });
+    return;
+  }
+  if (!content || content.length < 10) {
+    res.status(400).json({ error: "content is required (min 10 characters)" });
+    return;
+  }
+  if (content.length > 50000) {
+    res.status(400).json({ error: "content too large (max 50,000 characters)" });
+    return;
+  }
+
+  const maxRounds = Math.min(rounds, 5);
+
+  try {
+    // Round 1: independent parallel reviews (same as free tier)
+    const [codexR1, claudeR1] = await Promise.all([
+      reviewWithCodex(content, type, context),
+      reviewWithClaude(content, type, context),
+    ]);
+
+    const allRounds: Array<{ round: number; codex: ModelReview; claude: ModelReview }> = [
+      { round: 1, codex: codexR1, claude: claudeR1 },
+    ];
+
+    // Rounds 2+: each model sees the other's previous review
+    let lastCodex = codexR1;
+    let lastClaude = claudeR1;
+
+    for (let r = 2; r <= maxRounds; r++) {
+      // Check if they already agree
+      if (lastCodex.verdict === lastClaude.verdict && Math.abs(lastCodex.score - lastClaude.score) < 2) {
+        break; // Consensus reached
+      }
+
+      const result = await sparRound(content, type, context, [lastCodex, lastClaude], r);
+      allRounds.push({ round: r, ...result });
+      lastCodex = result.codex;
+      lastClaude = result.claude;
+    }
+
+    const finalReviews = [lastCodex, lastClaude];
+    const synthesis = synthesize(finalReviews);
+
+    res.json({
+      id: randomUUID(),
+      mode: "deep",
+      rounds_completed: allRounds.length,
+      consensus: synthesis.consensus,
+      consensus_score: synthesis.consensus_score,
+      final_reviews: finalReviews,
+      all_rounds: allRounds,
+      disagreements: synthesis.disagreements,
+      unified_recommendation: synthesis.unified_recommendation,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: `Deep review failed: ${msg}` });
+  }
+});
+
 const PORT = process.env.PORT || 3200;
 app.listen(PORT, () => {
   console.log(`DuoVeto running on http://localhost:${PORT}`);
-  console.log("Reviewers: Codex (GPT-5.4 via OAuth) + Claude Code (Opus 4.6 via OAuth)");
+  console.log("Reviewers: Codex (GPT-5.3 via OAuth) + Claude Code (Opus 4.6 via OAuth)");
+  console.log("Endpoints: POST /api/review (free) | POST /api/review/deep (pro)");
 });
