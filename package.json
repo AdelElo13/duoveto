@@ -11,12 +11,12 @@
   "author": "AdelElo13",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.85.0",
-    "@vercel/node": "^5.7.1",
+    "@anthropic-ai/sdk": "^0.89.0",
+    "@vercel/node": "^5.7.7",
     "express": "^5.2.1",
     "jose": "^6.2.2",
-    "openai": "^6.33.0",
-    "stripe": "^22.0.0"
+    "openai": "^6.34.0",
+    "stripe": "^22.0.1"
   },
   "devDependencies": {
     "tsx": "^4.21.0",
